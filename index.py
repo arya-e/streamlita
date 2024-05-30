@@ -3,7 +3,6 @@ import pandas as pd
 import plotly.express as px
 import plotly.figure_factory as ff
 
-
 # Function to load data
 def load_data(file):
     data = pd.read_csv(file)
@@ -41,30 +40,35 @@ def generate_summary(data):
     summary_df = pd.DataFrame(list(summary_data.items()), columns=['Metric', 'Value'])
     return summary_df, activities_summary, seed_varieties
 
+# Function to generate irrigation table
+# def generate_irrigation_table(data):
+#     irrigation_table = data[data['Irrigation Done'].notna()][['FarmName', 'Date', 'Irrigation Done']]
+#     return irrigation_table
 
-# Function to generate detailed view
-def generate_details(data):
-    farm_details = data.groupby('FarmName').agg({
-        'Plot Area in m2': 'first',
-        'Date': 'count',
-        'Activity': lambda x: ', '.join(x.unique()),
-        'DAP(kg)': 'sum',
-        'MOP(kg)': 'sum',
-        'SEED': 'sum',
-        'GERMINATION VALUE(%)': 'mean',
-        'Channels Constructed': 'sum',
-        'Sprinker installed': 'count',
-        'Irrigation Done': 'count',
-        'Seed Variety': lambda x: ', '.join(map(str, x.dropna().unique())),
-        'tillage': lambda x: ', '.join(x.dropna().unique())
-    }).reset_index()
+def generate_irrigation_table(data):
+    # Create a table of irrigation details
+    irrigation_done = data[data['Irrigation Done'].notna()][['FarmName', 'Date', 'Irrigation Done']]
+    
+    # Get a list of farms without any irrigation done
+    farms_without_irrigation = data[~data['FarmName'].isin(irrigation_done['FarmName'].unique())]['FarmName'].unique()
+    
+    # Create a DataFrame for farms without irrigation
+    no_irrigation_df = pd.DataFrame(farms_without_irrigation, columns=['FarmName'])
+    no_irrigation_df['Irrigation Done'] = 'No'
+    # no_irrigation_df['Channels Constructed'] = 'No'
+    # no_irrigation_df['Sprinker installed'] = 'No'
+    
+    # Combine the two DataFrames
+    irrigation_table = pd.concat([irrigation_done, no_irrigation_df], ignore_index=True)
 
-    farm_details = farm_details.rename(columns={
-        'Date': 'Number of Activities',
-        'Sprinker installed': 'Sprinkler Installed',
-        'Irrigation Done': 'Irrigation Done'
-    })
-    return farm_details
+    
+    return irrigation_table
+
+
+# Function to generate fertilizer table
+def generate_fertilizer_table(data):
+    fertilizer_table = data[['FarmName', 'Date', 'DAP(kg)', 'MOP(kg)']].dropna()
+    return fertilizer_table
 
 # Function to generate tillage operations table
 def generate_tillage_operations(data):
@@ -125,8 +129,20 @@ if uploaded_file is not None:
         st.write('### Tillage Operations')
         tillage_operations = generate_tillage_operations(data)
         st.bar_chart(tillage_operations)
+
+        # st.write('### Gantt Chart of Activities')
+        # gantt_data = generate_gantt_data(data)
+        # fig_gantt = ff.create_gantt(gantt_data, index_col='Resource', show_colorbar=True, group_tasks=True, title='Gantt Chart of Activities', showgrid_x=True, showgrid_y=True)
+        # st.plotly_chart(fig_gantt)
+
+        st.write('### Irrigation Details')
+        irrigation_table = generate_irrigation_table(data)
+        st.dataframe(irrigation_table)
+
+        st.write('### Fertilizer Application Details')
+        fertilizer_table = generate_fertilizer_table(data)
+        st.dataframe(fertilizer_table)
         
-    
     elif view == 'Micro View':
         st.header('Detailed View for Individual Farms')
         farmers = data['FarmName'].unique()
